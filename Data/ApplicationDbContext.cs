@@ -11,6 +11,7 @@ namespace lab2.Data
         public DbSet<Question> Questions { get; set; }
         public DbSet<Region> Regions { get; set; }
         public DbSet<ApplicationUser> Users { get; set; }
+        public DbSet<LevelResult> LevelResults { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
