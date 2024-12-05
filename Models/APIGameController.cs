@@ -1,19 +1,25 @@
 ﻿using Azure;
-using Azure.Identity;
 using lab2.Data;
 using lab2.DTO;
+using lab2.Models;
 using lab2.Service;
 using lab2.ViewModel;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq.Expressions;
+using System.Security.Claims;
+using System.Text;
 
-namespace lab2.Models
+namespace ServerGame106.Models
 {
     [Route("api/[controller]")]
     [ApiController]
-
 
     public class APIGameController : ControllerBase
     {
@@ -21,28 +27,25 @@ namespace lab2.Models
         private readonly IEmailService _emailService;
         protected ResponseApi _response;
         private readonly UserManager<ApplicationUser> _userManager;
-        public APIGameController(ApplicationDbContext db,
-            UserManager<ApplicationUser> userManager)
+        private readonly IConfiguration _configuration;
+        public APIGameController(ApplicationDbContext db, UserManager<ApplicationUser> userManager, IEmailService emailService, IConfiguration configuration)
         {
             _db = db;
             _response = new();
             _userManager = userManager;
-        }
-        public APIGameController(ApplicationDbContext db, IEmailService emailService)
-        {
-            _db = db;
             _emailService = emailService;
-        }
+            _configuration = configuration;
 
+        }
         [HttpGet("GetAllGameLevel")]
         public async Task<IActionResult> GetAllGameLevel()
         {
             try
             {
-                var gamelevel = await _db.GameLevels.ToListAsync();
+                var gameLevel = await _db.GameLevels.ToListAsync();
                 _response.IsSuccess = true;
                 _response.Notification = "Lấy dữ liệu thành công";
-                _response.Data = gamelevel;
+                _response.Data = gameLevel;
                 return Ok(_response);
             }
             catch (Exception ex)
@@ -51,9 +54,9 @@ namespace lab2.Models
                 _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
                 return BadRequest(_response);
-
             }
         }
+
         [HttpGet("GetAllQuestionGame")]
         public async Task<IActionResult> GetAllQuestionGame()
         {
@@ -73,12 +76,12 @@ namespace lab2.Models
                 return BadRequest(_response);
             }
         }
-        [HttpGet("GetAlLRegion")]
-        public async Task<IActionResult> GetAlLRegion()
+        [HttpGet("GetAllRegion")]
+        public async Task<IActionResult> GetAllRegion()
         {
             try
             {
-                var region = await _db.Questions.ToListAsync();
+                var region = await _db.Regions.ToListAsync();
                 _response.IsSuccess = true;
                 _response.Notification = "Lấy dữ liệu thành công";
                 _response.Data = region;
@@ -103,31 +106,31 @@ namespace lab2.Models
                     UserName = registerDTO.Email,
                     Name = registerDTO.Name,
                     Avatar = registerDTO.LinkAvatar,
-                    RegionId = registerDTO.RegionId,
+                    RegionId = registerDTO.RegionId
+
                 };
                 var result = await _userManager.CreateAsync(user, registerDTO.Password);
                 if (result.Succeeded)
                 {
                     _response.IsSuccess = true;
-                    _response.Notification = "Đăng kí thành công";
+                    _response.Notification = "Đăng ký thành công";
                     _response.Data = user;
                     return Ok(_response);
                 }
                 else
                 {
                     _response.IsSuccess = false;
-                    _response.Notification = "Đăng kí khong thành công";
+                    _response.Notification = "Đăng ký thất bại";
                     _response.Data = result.Errors;
                     return BadRequest(_response);
                 }
-
             }
             catch (Exception ex)
             {
                 _response.IsSuccess = false;
-                _response.Notification = "lỗi";
+                _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
-                return Ok(_response);
+                return BadRequest(_response);
             }
 
         }
@@ -136,15 +139,23 @@ namespace lab2.Models
         {
             try
             {
-                var email = loginRequest.Email; 
+                var email = loginRequest.Email;
                 var password = loginRequest.Password;
 
-                var user = await _userManager.FindByEmailAsync(email);
-                if(user != null && await _userManager.CheckPasswordAsync(user,password))
+                var user = await _userManager.FindByNameAsync(email);
+
+                if (user != null && await _userManager.CheckPasswordAsync(user, password))
                 {
+                    var token = GenerateJwtToken(user);
+                    var data = new
+                    {
+                        token = token,
+                        user = user
+                    };
+
                     _response.IsSuccess = true;
                     _response.Notification = "Đăng nhập thành công";
-                    _response.Data = user;
+                    _response.Data = data;
                     return Ok(_response);
                 }
                 else
@@ -153,23 +164,23 @@ namespace lab2.Models
                     _response.Notification = "Đăng nhập thất bại";
                     _response.Data = null;
                     return BadRequest(_response);
+
                 }
             }
             catch (Exception ex)
             {
                 _response.IsSuccess = false;
-                _response.Notification = "lỗi";
+                _response.Notification = "Có lỗi";
                 _response.Data = ex.Message;
-                return Ok(_response);
+                return BadRequest(_response);
             }
-
         }
         [HttpGet("GetAllQuestionGameByLevel/{levelId}")]
         public async Task<IActionResult> GetAllQuestionGameByLevel(int levelId)
         {
             try
             {
-                var questionGame = await _db.Questions.Where(x => x.LevelId == levelId).ToListAsync();
+                var questionGame = await _db.Questions.Where(x => x.levelId == levelId).ToListAsync();
                 _response.IsSuccess = true;
                 _response.Notification = "Lấy dữ liệu thành công";
                 _response.Data = questionGame;
@@ -181,6 +192,7 @@ namespace lab2.Models
                 _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
                 return BadRequest(_response);
+
             }
         }
         [HttpPost("SaveResult")]
@@ -300,7 +312,6 @@ namespace lab2.Models
                 return BadRequest(_response);
             }
         }
-
         [HttpGet("GetUserInformation/{userId}")]
         public async Task<IActionResult> GetUserInformation(string userId)
         {
@@ -313,17 +324,19 @@ namespace lab2.Models
                     _response.Notification = "Không tìm thấy người dùng";
                     _response.Data = null;
                     return BadRequest(_response);
+
                 }
                 UserInformationVM userInformationVM = new();
-                userInformationVM.Name = user.Name; 
+                userInformationVM.Name = user.Name;
                 userInformationVM.Email = user.Email;
                 userInformationVM.avatar = user.Avatar;
-                userInformationVM.Region = await _db.Regions.Where(x => x.RegionId == user.RegionId).Select(x => x.Name).FirstOrDefaultAsync();
-
+                userInformationVM.Region = await _db.Regions.Where(x => x.RegionId == user.RegionId)
+                    .Select(x => x.Name).FirstOrDefaultAsync();
                 _response.IsSuccess = true;
                 _response.Notification = "Lấy dữ liệu thành công";
                 _response.Data = userInformationVM;
                 return Ok(_response);
+
             }
             catch (Exception ex)
             {
@@ -332,7 +345,6 @@ namespace lab2.Models
                 _response.Data = ex.Message;
                 return BadRequest(_response);
             }
-
         }
         [HttpPut("ChangeUserPassword")]
         public async Task<IActionResult> ChangeUserPassword(ChangePasswordDTO changePasswordDTO)
@@ -355,15 +367,19 @@ namespace lab2.Models
                     _response.Data = "";
                     return Ok(_response);
                 }
-                _response.IsSuccess = false;
-                _response.Notification = "Đổi mật khẩu thất bại";
-                _response.Data = result.Errors;
-                return BadRequest(_response);
+                else
+                {
+                    _response.IsSuccess = false;
+                    _response.Notification = "Đổi mật khẩu thất bại";
+                    _response.Data = result.Errors;
+                    return BadRequest(_response);
+                }
+
             }
             catch (Exception ex)
             {
                 _response.IsSuccess = false;
-                _response.Notification = "Lỗi!";
+                _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
                 return BadRequest(_response);
             }
@@ -381,36 +397,30 @@ namespace lab2.Models
                     _response.Data = null;
                     return BadRequest(_response);
                 }
-
                 user.Name = userInformationDTO.Name;
                 user.RegionId = userInformationDTO.RegionId;
 
                 if (userInformationDTO.Avatar != null)
                 {
                     var fileExtension = Path.GetExtension(userInformationDTO.Avatar.FileName);
-                    var fileName = $"{userInformationDTO.UserId}{fileExtension}";
+                    var fileName = $"{userInformationDTO.UserId} {fileExtension}";
                     var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/uploads/avatars", fileName);
-
                     Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-
                     using (var stream = new FileStream(filePath, FileMode.Create))
                     {
                         await userInformationDTO.Avatar.CopyToAsync(stream);
                     }
-
                     user.Avatar = fileName;
                 }
-
                 await _db.SaveChangesAsync();
-
                 _response.IsSuccess = true;
                 _response.Notification = "Cập nhật thông tin thành công";
                 _response.Data = user;
                 return Ok(_response);
+
             }
             catch (Exception ex)
             {
-
                 _response.IsSuccess = false;
                 _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
@@ -430,13 +440,8 @@ namespace lab2.Models
                     _response.Data = null;
                     return BadRequest(_response);
                 }
-
-
                 user.IsDeleted = true;
-
-
                 await _db.SaveChangesAsync();
-
                 _response.IsSuccess = true;
                 _response.Notification = "Xóa người dùng thành công";
                 _response.Data = user;
@@ -444,7 +449,6 @@ namespace lab2.Models
             }
             catch (Exception ex)
             {
-
                 _response.IsSuccess = false;
                 _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
@@ -487,7 +491,7 @@ namespace lab2.Models
             }
         }
         [HttpPost("CheckOTP")]
-        public async Task<IActionResult> CheckOTP(CheckOTPDTO checkOTPDTO)
+        public async Task<ActionResult> CheckOTP(CheckOTPDTO checkOTPDTO)
         {
             try
             {
@@ -495,9 +499,10 @@ namespace lab2.Models
                 if (user == null)
                 {
                     _response.IsSuccess = false;
-                    _response.Notification = "Không tìm thấy người dùng";
+                    _response.Notification = "Không tìn thấy người dùng";
                     _response.Data = null;
                     return BadRequest(_response);
+
                 }
                 var stringOTP = Convert.ToInt32(checkOTPDTO.OTP).ToString();
                 if (user.OTP == stringOTP)
@@ -513,18 +518,15 @@ namespace lab2.Models
                     _response.Notification = "Mã OTP không chính xác";
                     _response.Data = null;
                     return BadRequest(_response);
-
                 }
-
             }
             catch (Exception ex)
             {
                 _response.IsSuccess = false;
-                _response.Notification = "Lỗi";
+                _response.Notification = "LỖI";
                 _response.Data = ex.Message;
                 return BadRequest(_response);
             }
-
         }
         [HttpPost("ResetPassword")]
         public async Task<IActionResult> ResetPassword(ResetPasswordDTO resetPasswordDTO)
@@ -539,7 +541,6 @@ namespace lab2.Models
                     _response.Data = null;
                     return BadRequest(_response);
                 }
-
                 var stringOTP = Convert.ToInt32(resetPasswordDTO.OTP).ToString();
                 if (user.OTP == stringOTP)
                 {
@@ -564,6 +565,7 @@ namespace lab2.Models
                         _response.Data = result.Errors;
                         return BadRequest(_response);
                     }
+
                 }
                 else
                 {
@@ -576,15 +578,53 @@ namespace lab2.Models
             catch (Exception ex)
             {
                 _response.IsSuccess = false;
-                _response.Notification = "Lỗi!";
+                _response.Notification = "Lỗi";
+                _response.Data = ex.Message;
+                return BadRequest(_response);
+            }
+        }
+        private string GenerateJwtToken(ApplicationUser user)
+        {
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id)
+            };
+            var token = new JwtSecurityToken(
+            issuer: _configuration["Jwt:Issuer"],
+            audience: _configuration["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.Now.AddMinutes(30),
+            signingCredentials: credentials
+            );
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+
+        [HttpGet("GetAllResultByUser/{userId}")]
+        [Authorize]
+        public async Task<IActionResult> GetAllResultByUser(string userId)
+        {
+            try
+            {
+                var result = await _db.LevelResults.Where(x => x.UserId == userId).ToListAsync();
+                _response.IsSuccess = true;
+                _response.Notification = "Lấy dữ liệu thành công";
+                _response.Data = result;
+                return Ok(_response);
+            }
+            catch (Exception ex)
+            {
+                _response.IsSuccess = false;
+                _response.Notification = "Lỗi";
                 _response.Data = ex.Message;
                 return BadRequest(_response);
             }
         }
 
-
-
-
-
     }
 }
+

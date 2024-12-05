@@ -12,7 +12,7 @@ using lab2.Data;
 namespace lab2.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241107085653_addDb")]
+    [Migration("20241123081917_addDb")]
     partial class addDb
     {
         /// <inheritdoc />
@@ -180,6 +180,9 @@ namespace lab2.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
@@ -197,6 +200,10 @@ namespace lab2.Migrations
                     b.Property<string>("NormalizedUserName")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("OTP")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
@@ -268,6 +275,32 @@ namespace lab2.Migrations
                             LevelId = 3,
                             title = "Cấp độ 3"
                         });
+                });
+
+            modelBuilder.Entity("lab2.Models.LevelResult", b =>
+                {
+                    b.Property<int>("QuizResultId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("QuizResultId"));
+
+                    b.Property<DateOnly>("ComletionDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LevelId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("QuizResultId");
+
+                    b.ToTable("LevelResults");
                 });
 
             modelBuilder.Entity("lab2.Models.Question", b =>

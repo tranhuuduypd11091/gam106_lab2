@@ -36,7 +36,7 @@ namespace lab2.Data
                 Option2 = "Đáp án 2",
                 Option3 = "Đáp án 3",
                 Option4 = "Đáp án 4",
-                LevelId = 1
+                levelId = 1
             },
             new Question
             {
@@ -47,7 +47,7 @@ namespace lab2.Data
                 Option2 = "Đáp án 2",
                 Option3 = "Đáp án 3",
                 Option4 = "Đáp án 4",
-                LevelId = 2
+                levelId = 2
             }
             );
         }

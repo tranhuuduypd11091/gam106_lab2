@@ -7,7 +7,6 @@ namespace lab2.Models
     {
         [Key]
         public int QuestionId { get; set; }
-        [Required]
         public string ContentQuestion { get; set; }
         [Required]
         public string Answer { get; set; }
@@ -16,6 +15,7 @@ namespace lab2.Models
         public string Option3 { get; set; }
         public string Option4 { get; set; }
         [ForeignKey("Level")]
-        public int LevelId { get; set; }
+        public int levelId { get; set; }
     }
 }
+
